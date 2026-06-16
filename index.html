@@ -49,6 +49,7 @@ body{min-height:100vh;background:radial-gradient(ellipse 1200px 600px at 50% -20
 .rknet{font-family:var(--mono);font-size:22px;font-weight:900;color:var(--neon);text-shadow:0 0 16px rgba(159,232,112,.3);line-height:1}
 .rknet .u{font-size:11px;color:var(--text-faint);font-weight:600;text-shadow:none}
 .rknet.kill{color:var(--danger);text-shadow:0 0 16px rgba(255,107,107,.3)}
+.rkep{font-size:10.5px;color:var(--text-faint);font-family:var(--mono);font-weight:600;margin-top:3px}
 .bar{height:5px;border-radius:3px;background:var(--bg-2);margin-top:7px;overflow:hidden}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--neon-dim),var(--neon));border-radius:3px;transition:width .5s}
 .bar i.kill{background:var(--danger)}
@@ -338,13 +339,13 @@ function renderRank(){
   const med=['🥇','🥈','🥉','4️⃣'];
   $('rankBody').innerHTML=rows.map((r,i)=>{
     const w=Math.max(0,Math.min(100,r.net/maxNet*100));
-    const sub=`extra ${pct(r.ex,3)}/d × 회수 ${(r.rec*100).toFixed(1)}%  ·  매도세 ${(r.t*100).toFixed(1)}% · 터빈세 ${(r.phi*100).toFixed(1)}%`;
+    const sub=`extra ${pct(r.ex,3)}/d·${pct(r.ex/CFG.EXTRA_EP_PER_DAY,4)}/ep × 회수 ${(r.rec*100).toFixed(1)}%  ·  매도세 ${(r.t*100).toFixed(1)}% · 터빈세 ${(r.phi*100).toFixed(1)}%`;
     return `<div class="rk">
       <div class="rkmed">${med[i]}</div>
       <div class="rkmid"><div class="rkname">${r.p.name}${r.kill?' <span class="bdg hi">킬스위치</span>':''}</div>
         <div class="rksub">${sub}</div>
         <div class="bar"><i class="${r.kill?'kill':''}" style="width:${r.kill?100:w}%"></i></div></div>
-      <div class="rkright"><div class="rknet ${r.kill?'kill':''}">${r.kill?'≤0':fN(r.net,3)}<span class="u"> %/day</span></div></div>
+      <div class="rkright"><div class="rknet ${r.kill?'kill':''}">${r.kill?'≤0':fN(r.net,3)}<span class="u"> %/day</span></div>${r.kill?'':`<div class="rkep">${fN(r.net/CFG.EXTRA_EP_PER_DAY,4)} %/ep·12h</div>`}</div>
     </div>`;
   }).join('');
 }
