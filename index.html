@@ -156,7 +156,8 @@ const CFG={
     rpcs:["https://rpc.anubispace.org"],
     slgns:"0x2243aE29F73137d678197b61B0621AE942845B8C",
     turbine:"0x92B53785090F6FE0717Ca3cF5dB8f8040d3B070b",
-    quote:"0x5c083dc6",                               // Anubis silence DAI 견적(impl 0xb3ec6e45, getSilenceUSDTAmount과 다른 셀렉터 — 2026-06-15 실증)
+    quote:"0x5c083dc6",                               // Anubis silence 매수 DAI 견적(impl 0xb3ec6e45 — getSilenceUSDTAmount 부재)
+    feeRateSel:"0x2d5ec9b9", feePrec:10000,           // ★silence 실행 시 매수액 위 별도 프로토콜 수수료 = 500/10000 = 5% → 0x8c4ea5da (2026-06-15 실거래 디코드 실증)
     lp:"0x32A4586797E3f561F41C0F47CA57eD08D64f3dC0",   // token0=LGNS(9) token1=DAI(18)
     lgns:"0x4D1D808a081FdAc440703b3765FC61f8028C06B8",
     c360:"0x88ea98af226Cd4402A3873400308a4D78784eCE6",
@@ -171,7 +172,7 @@ const CFG={
     extraDay:{p360:0.2400,p600:0.1566,a360:0.3000,a600:0.3900},
     extraEp :{p360:0.1200,p600:0.0783,a360:0.1500,a600:0.1950},
     rebaseDay:{poly:0.5994,anu:0.5981}, rebaseEp:{poly:0.1499,anu:0.1495},
-    sellTax:{poly:0.05,anu:0.2875}, turbFee:{poly:0.003,anu:0.003}, // 양 체인 터빈세 ≈0.3% (2026-06-15 실증, "5%"설 반증)
+    sellTax:{poly:0.05,anu:0.2875}, turbFee:{poly:0.003,anu:0.053}, // Polygon ≈0.3%(수수료 無) / Anubis ≈5.3%(매수 0.3% + 프로토콜 5%, 2026-06-15 실거래 디코드 실증)
   },
   EXTRA_EP_PER_DAY:2, REB_EP_PER_DAY:4,
 };
@@ -248,9 +249,14 @@ async function readSellTax(chain){
 }
 async function readSpot(chain){ const w=words(await call(chain,CFG[chain].lp,CFG.sel.getReserves)); return spotFromReserves(chain,w[0],w[1]); }
 async function readTurbFee(chain){
-  // 체인별 silence 견적 함수가 다름: Polygon getSilenceUSDTAmount(0xbffc7b0c) vs Anubis 0x5c083dc6 (2026-06-15 실증)
-  const dai=Number(hb(await call(chain,CFG[chain].turbine,CFG[chain].quote+toHex32(1000000000))))/1e18; // 1 LGNS
-  const sp=await readSpot(chain); return dai/sp-1;
+  // φ = 1 LGNS 차저를 silence할 때 시장가 대비 실제 지불 DAI 프리미엄.
+  // Polygon: getSilenceUSDTAmount(0xbffc7b0c)이 전액(수수료 없음, 실효 50%). Anubis: 매수견적(0x5c083dc6) + 별도 5% 프로토콜 수수료(0x2d5ec9b9).
+  const c=CFG[chain];
+  const buyDai=Number(hb(await call(chain,c.turbine,c.quote+toHex32(1000000000))))/1e18; // 1 LGNS 매수 견적 DAI
+  const sp=await readSpot(chain);
+  let mult=1;
+  if(c.feeRateSel){ try{ const fr=Number(hb(await call(chain,c.turbine,c.feeRateSel)))/c.feePrec; mult=1+fr; }catch(e){ mult=1.05; } }
+  return (buyDai/sp)*mult-1;
 }
 async function readRebasePoly(){
   const ew=words(await call('poly',CFG.poly.staking,CFG.sel.epoch));            // (len,num,end,distribute)
