@@ -64,14 +64,17 @@ body{min-height:100vh;background:radial-gradient(ellipse 1200px 600px at 50% -20
 .rv{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text);text-align:right;white-space:nowrap}
 .rv.hot{color:var(--neon)}
 .rv .sub{font-size:10px;color:var(--text-faint);font-weight:400;margin-left:6px}
-.ev{background:none;border:none;cursor:pointer;font-size:11px;line-height:1;padding:0 3px;opacity:.55;vertical-align:middle}
+.ev{background:none;border:none;cursor:pointer;font-size:12px;line-height:1;padding:0 3px;opacity:.7;vertical-align:middle}
 .ev:hover{opacity:1}
-.evrow{font-size:10.5px;color:var(--text-faint);font-family:var(--mono);padding:2px 0 6px 6px;line-height:1.6;word-break:break-all}
-.evrow a{color:var(--neon);text-decoration:none;border-bottom:1px dotted var(--neon)}
-.evrow a:hover{opacity:.8}
-.evlbl{color:var(--neon);font-weight:700;margin-right:4px}
-.evdim{color:var(--text-faint);opacity:.7}
+.evrow{font-size:11.5px;color:var(--text-dim);font-family:var(--mono);padding:7px 9px;margin:3px 0 7px;line-height:1.65;background:rgba(159,232,112,.05);border-left:2px solid var(--neon);border-radius:6px}
+.evrow .evb{color:var(--neon-bright);font-weight:700;margin-bottom:4px;font-size:12px}
+.evrow .evi{word-break:break-all;margin-top:2px}
+.evrow a{color:var(--neon-bright);text-decoration:none;border-bottom:1px solid var(--neon)}
+.evrow a:hover{color:#fff}
+.evdim{color:var(--text-faint);font-weight:400}
 .bdg[data-ev]{cursor:pointer}
+#blk a{color:var(--text-dim);text-decoration:none;border-bottom:1px dotted var(--text-faint)}
+#blk a:hover{color:var(--neon)}
 .eqtag,.sttag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;margin-left:5px;font-family:var(--mono)}
 .eqtag{background:rgba(127,212,232,.13);color:var(--info)}
 .sttag{background:rgba(159,232,112,.13);color:var(--neon)}
@@ -199,14 +202,22 @@ const BSAPI={ poly:"https://polygon.blockscout.com", anu:"https://browser.anubis
 const ORACLE_ANU="0xb4E5b7665186229d8A5B0ba3706c5C119dD1B47b", ACCT_ANU="0x3041C3524C560C7e8887F671e046aC4e95bD8F13";
 // 율별 소스 컨트랙트 + (가능 시)정확한 원인 tx 필터. cause=null → 컨트랙트+블록 링크만(검증가능).
 const EVID={
-  "reb:poly":  {chain:"poly", src:CFG.poly.staking, cause:null},                                           // 사용자 stake/claim 트리거 → 단일 tx 없음
-  "reb:anu":   {chain:"anu",  src:ORACLE_ANU, cause:{addr:ORACLE_ANU, method:"0xa1849438", label:"오라클 인덱스 갱신"}},
-  "extra:p360":{chain:"poly", src:CFG.poly.c360, cause:null}, "extra:p600":{chain:"poly", src:CFG.poly.c600, cause:null},
-  "extra:a360":{chain:"anu",  src:CFG.anu.c360, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자 배치 주입"}},
-  "extra:a600":{chain:"anu",  src:CFG.anu.c600, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자 배치 주입"}},
-  "tax:poly":  {chain:"poly", src:CFG.poly.lgns, cause:null}, "tax:anu": {chain:"anu", src:CFG.anu.lgns, cause:null},
-  "turb:poly": {chain:"poly", src:CFG.poly.turbine, cause:null}, "turb:anu": {chain:"anu", src:CFG.anu.turbine, cause:null},
+  "reb:poly":  {chain:"poly", src:CFG.poly.staking, cause:null,
+                basis:"Staking 다음 발행량 ÷ sLGNS 유통량 (즉시값)", look:"Read 탭에서 epoch() 4번째값(distribute) ÷ circulatingSupply()"},
+  "reb:anu":   {chain:"anu",  src:ORACLE_ANU, cause:{addr:ORACLE_ANU, method:"0xa1849438", label:"오라클이 인덱스를 새 값으로 갱신"},
+                basis:"오라클 인덱스의 epoch당 성장률 (복리)", look:"Read 탭에서 currentIndex()·currentEpoch() — 매 갱신 tx마다 인덱스↑"},
+  "extra:p360":{chain:"poly", src:CFG.poly.c360, cause:null, basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"스토리지 slot 0x6a(globalIndex)·0x6b(epoch) — 매 epoch +1,200,000"},
+  "extra:p600":{chain:"poly", src:CFG.poly.c600, cause:null, basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"스토리지 slot 0x6a(globalIndex)·0x6b(epoch) — 매 epoch +783,000"},
+  "extra:a360":{chain:"anu",  src:CFG.anu.c360, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자가 globalIndex를 증액 주입(배치)"},
+                basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"스토리지 slot 0x6b(globalIndex)·0x6c(epoch) — 매 epoch +1,500,000"},
+  "extra:a600":{chain:"anu",  src:CFG.anu.c600, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자가 globalIndex를 증액 주입(배치)"},
+                basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"스토리지 slot 0x6b(globalIndex)·0x6c(epoch) — 매 epoch +1,950,000"},
+  "tax:poly":  {chain:"poly", src:CFG.poly.lgns, cause:null, basis:"LGNS 토큰 매도 수수료율", look:"Read 탭에서 feeRatio()(÷1e5) + extraFeeRatio()"},
+  "tax:anu":   {chain:"anu",  src:CFG.anu.lgns, cause:null, basis:"LGNS 토큰 매도 수수료율(동적)", look:"Read 탭에서 feeRatio()·extraFeeRatio() (각 ÷1e5)"},
+  "turb:poly": {chain:"poly", src:CFG.poly.turbine, cause:null, basis:"1 LGNS silence 매수견적 ÷ LP시장가 − 1", look:"getSilenceUSDTAmount() ÷ LP getReserves()"},
+  "turb:anu":  {chain:"anu",  src:CFG.anu.turbine, cause:null, basis:"1 LGNS silence 매수견적 ÷ LP시장가 + 5% 수수료", look:"silence 견적 ÷ LP getReserves() + 프로토콜 수수료율"},
 };
+function readUrl(chain,addr){ return chain==="anu" ? EXPL.anu+"/address/"+addr+"?tab=read_contract" : EXPL.poly+"/address/"+addr+"#readContract"; }
 function exUrl(chain,type,id){ return EXPL[chain]+"/"+type+"/"+id; }   // type: address|tx|block
 const evId=k=>"ev-"+k.replace(/:/g,"-"), _txCache={};
 async function causeTx(key){
@@ -221,14 +232,18 @@ async function causeTx(key){
 }
 function fillEvRow(key){
   const e=EVID[key], el=$(evId(key)); if(!el||!e) return;
-  const ch=e.chain, blk=S.block[ch], a=(t,u)=>'<a href="'+u+'" target="_blank" rel="noopener">'+t+' ↗</a>';
-  const cL=a("컨트랙트 "+e.src.slice(0,8)+"…", exUrl(ch,"address",e.src));
-  const bL=blk?a("block "+blk, exUrl(ch,"block",blk)):"block —";
-  el.innerHTML='<span class="evlbl">근거</span> '+cL+' · 읽음 '+bL+(e.cause?' · <span class="evtx">원인 tx 조회중…</span>':' · <span class="evdim">tx목록=컨트랙트 페이지</span>');
-  el.hidden=false;
+  const ch=e.chain, blk=S.block[ch], expl=ch==="anu"?"browser.anubispace.org":"polygonscan";
+  const A=(t,u)=>'<a href="'+u+'" target="_blank" rel="noopener">'+t+' ↗</a>';
+  let h='<div class="evb">이 율 = '+e.basis+'</div>';
+  h+='<div class="evi">📄 컨트랙트 '+A(e.src.slice(0,10)+"…", readUrl(ch,e.src))+' <span class="evdim">→ 여기서 봄: '+e.look+' ('+expl+')</span></div>';
+  if(e.cause) h+='<div class="evi evtx evdim">⏳ 변경 tx 조회중…</div>';
+  else        h+='<div class="evi evdim">🔄 변경 tx는 드묾 → 위 컨트랙트 페이지의 Transactions 탭에서 이력 확인</div>';
+  h+='<div class="evi">⏱ 읽은 블록 '+(blk?A("#"+blk, exUrl(ch,"block",blk)):"—")+' <span class="evdim">(이 값을 측정한 블록 시점)</span></div>';
+  el.innerHTML=h; el.hidden=false;
   if(e.cause) causeTx(key).then(tx=>{ const sp=el.querySelector(".evtx"); if(!sp)return;
-    sp.innerHTML = tx ? a("원인 tx "+String(tx.hash).slice(0,10)+"…",exUrl(ch,"tx",tx.hash))+' <span class="evdim">('+e.cause.label+"·blk "+tx.block+")</span>"
-                      : '<span class="evdim">원인 tx 조회 실패 — 컨트랙트 tx목록 참조</span>'; });
+    sp.classList.remove("evdim");
+    sp.innerHTML = tx ? '🔗 변경 tx '+A(String(tx.hash).slice(0,12)+"…", exUrl(ch,"tx",tx.hash))+' <span class="evdim">— '+e.cause.label+" (blk "+tx.block+")</span>"
+                      : '🔄 변경 tx 조회 실패 → 컨트랙트 Transactions 탭 참조'; });
 }
 document.addEventListener("click",ev=>{
   const b=ev.target.closest("[data-ev]"); if(!b) return;
