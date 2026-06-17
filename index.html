@@ -175,7 +175,7 @@ const CFG={
     slotGI:"0x6b", slotDenom:"0x71", slotEpoch:"0x6c",
   },
   sel:{ epoch:"0x900cf0cf", circulating:"0x9358928b", totalSupply:"0x18160ddd",
-    getReserves:"0x0902f1ac", silenceUSDT:"0xbffc7b0c", index:"0x2986c0e5",
+    getReserves:"0x0902f1ac", silenceUSDT:"0xbffc7b0c", index:"0x2986c0e5", curEpoch:"0x76671808",
     extraInterest:"0xb01d3563", stakes:"0x584b62a1", feeRatio:"0x41744dd4", extraFeeRatio:"0x3c336ff4" },
   // 세션 baseline (2026-06-15 교차검증) — 첫 로드 즉시표시, 라이브 델타로 갱신
   seed:{
@@ -323,18 +323,17 @@ async function readRebasePoly(){
   const perEp=distribute/circ*100; return {perEp,perDay:perEp*CFG.REB_EP_PER_DAY,status:'live'};
 }
 async function readRebaseAnu(){
-  // ★ 리베이스는 *상대* 성장률(Δidx/idx)이어야 함. 공유 rateFromAcc는 절대Δ용(extra 분율 전용)이라
-  //   인덱스(≈713)를 넣으면 ÷idx가 빠져 ~713배 폭증(seed 0.6%/day → ~424%/day). 전용 델타 캐시로 분리.
-  const idx=Number(hb(await call('anu',CFG.anu.slgns,CFG.sel.index)))/1e9;   // 인덱스 절대값(≈713)
-  const k='reb:anu', prev=cg(k), now=Date.now(), sd=CFG.seed.rebaseDay.anu, se=CFG.seed.rebaseEp.anu;
-  const wait=()=>{const pd=(prev&&prev.perDay)||sd;return {perDay:pd,perEp:pd/CFG.REB_EP_PER_DAY,status:(prev&&prev.live)?'live':'wait'};};
-  if(!prev||typeof prev.idx!=='number'){ cs(k,{idx,ts:now,perDay:sd,live:false}); return {perDay:sd,perEp:se,status:'seed'}; } // 최초/구버전(acc)캐시 → 재기준
-  if(idx>prev.idx){ const days=(now-prev.ts)/86400000;
-    if(days>=0.18){ const perDay=(idx/prev.idx-1)*100/days;            // ★ 상대 성장률 ÷ days
-                    cs(k,{idx,ts:now,perDay,live:true}); return {perDay,perEp:perDay/CFG.REB_EP_PER_DAY,status:'live'}; }
-    return wait(); }                                                    // 표본 너무 짧음(<4.3h) — baseline 보존
-  if(idx<prev.idx){ cs(k,{idx,ts:now,perDay:sd,live:false}); return {perDay:sd,perEp:se,status:'seed'}; } // 인덱스 감소(이상치) → 재기준
-  return wait();                                                        // 같은 epoch — 아직 실측 전
+  // ★ 리베이스도 *온체인 epoch 카운터*(오라클 currentEpoch)로 정확 측정 — 벽시계 ÷days 드리프트 제거.
+  //   perEp = (idx/prev.idx − 1) ÷ Δepoch. (idx≈713, 오라클 6h epoch → REB_EP_PER_DAY=4)
+  const idx=Number(hb(await call('anu',CFG.anu.slgns,CFG.sel.index)))/1e9;   // 인덱스(≈713)
+  const ep=Number(hb(await call('anu',ORACLE_ANU,CFG.sel.curEpoch)));        // 오라클 currentEpoch 카운터
+  const k='reb:anu', prev=cg(k), se=CFG.seed.rebaseEp.anu;
+  const out=(perEp,status)=>({perDay:perEp*CFG.REB_EP_PER_DAY,perEp,status});
+  if(!prev||typeof prev.idx!=='number'||typeof prev.ep!=='number'){ cs(k,{idx,ep,perEp:se,live:false}); return out(se,'seed'); } // 최초/구버전(벽시계)캐시 → 재기준
+  if(ep>prev.ep){ const perEp=(idx/prev.idx-1)*100/(ep-prev.ep);            // ★ 상대성장 ÷ Δepoch(온체인)
+                  cs(k,{idx,ep,perEp,live:true}); return out(perEp,'live'); }
+  if(idx<prev.idx){ cs(k,{idx,ep,perEp:se,live:false}); return out(se,'seed'); } // 인덱스 감소(이상) → 재기준
+  return out((prev.perEp)||se, prev.live?'live':'wait');                     // 같은 epoch — 직전 실측 유지
 }
 async function readExtraPoly(prod){ // prod: p360|p600 — globalIndex(0x6a)/epoch(0x6b) 직접, denom 1e9
   // 아카이브 검증(2026-06-17): inc 783000(p600)/1200000(p360) ÷ 1e9 = seed, epoch 12.00h.
