@@ -152,6 +152,7 @@ const CFG={
     c600:"0x8cA97F41d2C81AF050656e8AD0Cf543820a24504",
     ref360:["0xFB69AAa41bC497D674cF42a1EdA2FF11465872dd","0x736d22D1d971AfbbB08545800F20F032312a87fF"],
     ref600:["0xedeC9331852eeB076811Ef8Bc60bceE10c74e352","0x110D74f97EAe92ADcC85D3f94469edd102840fB8"],
+    slotGI:"0x6a", slotEpoch:"0x6b",   // 아카이브 검증(2026-06-17): inc 783000/1200000 ÷ 1e9 = seed, epoch 12.00h
   },
   anu:{
     rpcs:["https://rpc.anubispace.org"],
@@ -280,17 +281,19 @@ async function readRebaseAnu(){
   if(idx<prev.idx){ cs(k,{idx,ts:now,perDay:sd,live:false}); return {perDay:sd,perEp:se,status:'seed'}; } // 인덱스 감소(이상치) → 재기준
   return wait();                                                        // 같은 epoch — 아직 실측 전
 }
-async function readExtraPoly(prod){ // prod: p360|p600
-  const c=prod==='p360'?CFG.poly.c360:CFG.poly.c600, refs=prod==='p360'?CFG.poly.ref360:CFG.poly.ref600;
-  let last;
-  for(const ref of refs){ try{
-    const stk=words(await call('poly',c,CFG.sel.stakes+addr32(ref)+toHex32(0)));
-    const principal=Number(stk[0]); if(!principal) throw 0;
-    const ei=Number(hb(await call('poly',c,CFG.sel.extraInterest+addr32(ref)+toHex32(0))));
-    const r=rateFromAcc('extra:'+prod, ei/principal, CFG.seed.extraDay[prod]);
-    return {perDay:r.perDay,perEp:r.perDay/CFG.EXTRA_EP_PER_DAY,status:r.status};
-  }catch(e){last=e;} }
-  throw last;
+async function readExtraPoly(prod){ // prod: p360|p600 — globalIndex(0x6a)/epoch(0x6b) 직접, denom 1e9
+  // 아카이브 검증(2026-06-17): inc 783000(p600)/1200000(p360) ÷ 1e9 = seed, epoch 12.00h.
+  // 기준-스테이커 벽시계 방식은 측정창이 epoch 경계와 어긋나 ~6.5% 드리프트 → epoch 카운터로 정확화(Anubis와 동일).
+  const c=prod==='p360'?CFG.poly.c360:CFG.poly.c600, denom=1e9;
+  const gi=Number(hb(await storage('poly',c,CFG.poly.slotGI)));        // 0x6a globalIndex 누적
+  const ep=Number(hb(await storage('poly',c,CFG.poly.slotEpoch)));     // 0x6b extra epoch 카운터
+  const k='extra:'+prod, prev=cg(k), se=CFG.seed.extraEp[prod];
+  const out=(perEp,status)=>({perDay:perEp*CFG.EXTRA_EP_PER_DAY,perEp,status});
+  if(!prev||typeof prev.gi!=='number'||typeof prev.ep!=='number'){ cs(k,{gi,ep,perEp:se,live:false}); return out(se,'seed'); } // 최초/구버전(acc)캐시 → 재기준
+  if(ep>prev.ep){ const perEp=(gi-prev.gi)/(ep-prev.ep)/denom*100;     // ★ Δgi ÷ Δepoch ÷ denom
+                  cs(k,{gi,ep,perEp,live:true}); return out(perEp,'live'); }
+  if(gi<prev.gi){ cs(k,{gi,ep,perEp:se,live:false}); return out(se,'seed'); } // 리셋/이상 → 재기준
+  return out((prev.perEp)||se, prev.live?'live':'wait');               // 같은 epoch — 직전 실측 유지
 }
 async function readExtraAnu(prod){ // prod: a360|a600
   // ★ per-epoch는 *온체인 epoch 카운터*(slot 0x6c)로 직접 측정. 벽시계 ÷days는 extra epoch이
