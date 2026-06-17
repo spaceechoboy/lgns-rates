@@ -201,21 +201,22 @@ const EXPL ={ poly:"https://polygonscan.com", anu:"https://browser.anubispace.or
 const BSAPI={ poly:"https://polygon.blockscout.com", anu:"https://browser.anubispace.org" }; // 원인 tx 조회(무료·키없음)
 const ORACLE_ANU="0xb4E5b7665186229d8A5B0ba3706c5C119dD1B47b", ACCT_ANU="0x3041C3524C560C7e8887F671e046aC4e95bD8F13";
 // 율별 소스 컨트랙트 + (가능 시)정확한 원인 tx 필터. cause=null → 컨트랙트+블록 링크만(검증가능).
+// v=익스플로러 verified(Read 탭 有) · k=값 출처(getter=뷰함수 / storage=스토리지슬롯). 검증상태 실측(2026-06-18): Polygon=verified, Anubis=unverified.
 const EVID={
-  "reb:poly":  {chain:"poly", src:CFG.poly.staking, cause:null,
-                basis:"Staking 다음 발행량 ÷ sLGNS 유통량 (즉시값)", look:"Read 탭에서 epoch() 4번째값(distribute) ÷ circulatingSupply()"},
-  "reb:anu":   {chain:"anu",  src:ORACLE_ANU, cause:{addr:ORACLE_ANU, method:"0xa1849438", label:"오라클이 인덱스를 새 값으로 갱신"},
-                basis:"오라클 인덱스의 epoch당 성장률 (복리)", look:"Read 탭에서 currentIndex()·currentEpoch() — 매 갱신 tx마다 인덱스↑"},
-  "extra:p360":{chain:"poly", src:CFG.poly.c360, cause:null, basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"스토리지 slot 0x6a(globalIndex)·0x6b(epoch) — 매 epoch +1,200,000"},
-  "extra:p600":{chain:"poly", src:CFG.poly.c600, cause:null, basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"스토리지 slot 0x6a(globalIndex)·0x6b(epoch) — 매 epoch +783,000"},
-  "extra:a360":{chain:"anu",  src:CFG.anu.c360, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자가 globalIndex를 증액 주입(배치)"},
-                basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"스토리지 slot 0x6b(globalIndex)·0x6c(epoch) — 매 epoch +1,500,000"},
-  "extra:a600":{chain:"anu",  src:CFG.anu.c600, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자가 globalIndex를 증액 주입(배치)"},
-                basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"스토리지 slot 0x6b(globalIndex)·0x6c(epoch) — 매 epoch +1,950,000"},
-  "tax:poly":  {chain:"poly", src:CFG.poly.lgns, cause:null, basis:"LGNS 토큰 매도 수수료율", look:"Read 탭에서 feeRatio()(÷1e5) + extraFeeRatio()"},
-  "tax:anu":   {chain:"anu",  src:CFG.anu.lgns, cause:null, basis:"LGNS 토큰 매도 수수료율(동적)", look:"Read 탭에서 feeRatio()·extraFeeRatio() (각 ÷1e5)"},
-  "turb:poly": {chain:"poly", src:CFG.poly.turbine, cause:null, basis:"1 LGNS silence 매수견적 ÷ LP시장가 − 1", look:"getSilenceUSDTAmount() ÷ LP getReserves()"},
-  "turb:anu":  {chain:"anu",  src:CFG.anu.turbine, cause:null, basis:"1 LGNS silence 매수견적 ÷ LP시장가 + 5% 수수료", look:"silence 견적 ÷ LP getReserves() + 프로토콜 수수료율"},
+  "reb:poly":  {chain:"poly", v:true,  k:"getter",  src:CFG.poly.staking, cause:null,
+                basis:"Staking 다음 발행량 ÷ sLGNS 유통량 (즉시값)", look:"epoch() 4번째값(distribute) ÷ circulatingSupply()"},
+  "reb:anu":   {chain:"anu",  v:false, k:"getter",  src:ORACLE_ANU, cause:{addr:ORACLE_ANU, method:"0xa1849438", label:"오라클이 인덱스를 새 값으로 갱신"},
+                basis:"오라클 인덱스의 epoch당 성장률 (복리)", look:"currentIndex()·currentEpoch()"},
+  "extra:p360":{chain:"poly", v:true,  k:"storage", src:CFG.poly.c360, cause:null, basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"slot 0x6a(globalIndex)·0x6b(epoch), 매 epoch +1,200,000"},
+  "extra:p600":{chain:"poly", v:true,  k:"storage", src:CFG.poly.c600, cause:null, basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"slot 0x6a·0x6b, 매 epoch +783,000"},
+  "extra:a360":{chain:"anu",  v:false, k:"storage", src:CFG.anu.c360, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자가 globalIndex를 증액 주입(배치)"},
+                basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"slot 0x6b(globalIndex)·0x6c(epoch), 매 epoch +1,500,000"},
+  "extra:a600":{chain:"anu",  v:false, k:"storage", src:CFG.anu.c600, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자가 globalIndex를 증액 주입(배치)"},
+                basis:"LONG globalIndex 증가분 ÷ 1e9 (단리)", look:"slot 0x6b·0x6c, 매 epoch +1,950,000"},
+  "tax:poly":  {chain:"poly", v:true,  k:"getter",  src:CFG.poly.lgns, cause:null, basis:"LGNS 토큰 매도 수수료율", look:"feeRatio()(÷1e5) + extraFeeRatio()"},
+  "tax:anu":   {chain:"anu",  v:false, k:"getter",  src:CFG.anu.lgns, cause:null, basis:"LGNS 토큰 매도 수수료율(동적)", look:"feeRatio()·extraFeeRatio() (각 ÷1e5)"},
+  "turb:poly": {chain:"poly", v:true,  k:"getter",  src:CFG.poly.turbine, cause:null, basis:"1 LGNS silence 매수견적 ÷ LP시장가 − 1", look:"getSilenceUSDTAmount() ÷ LP getReserves()"},
+  "turb:anu":  {chain:"anu",  v:false, k:"getter",  src:CFG.anu.turbine, cause:null, basis:"1 LGNS silence 매수견적 ÷ LP시장가 + 5% 수수료", look:"silence 견적 ÷ getReserves() + 수수료율"},
 };
 function readUrl(chain,addr){ return chain==="anu" ? EXPL.anu+"/address/"+addr+"?tab=read_contract" : EXPL.poly+"/address/"+addr+"#readContract"; }
 function exUrl(chain,type,id){ return EXPL[chain]+"/"+type+"/"+id; }   // type: address|tx|block
@@ -230,20 +231,31 @@ async function causeTx(key){
     return _txCache[key]= t?{hash:t.hash,block:t.block_number}:null;
   }catch(_){ return _txCache[key]=null; }                              // 폴백: 원인 tx 생략(컨트랙트+블록은 유지)
 }
+// 대시보드가 직접 읽은 실제 값 (미검증 컨트랙트는 익스플로러 Read 탭이 없으니 이게 핵심 근거)
+function vals(key){
+  if(key.indexOf("reb:")===0){ const c=cg(key); if(c&&typeof c.idx==="number") return "인덱스 "+c.idx.toFixed(2)+" · epoch "+c.ep; }
+  if(key.indexOf("extra:")===0){ const c=cg(key); if(c&&typeof c.gi==="number") return "globalIndex "+c.gi.toLocaleString("en-US")+" · epoch "+c.ep; }
+  const m=key.match(/^(tax|turb):(poly|anu)$/);
+  if(m){ const v=m[1]==="tax"?S[m[2]].sellTax:S[m[2]].turbFee; if(v!=null&&!isNaN(v)) return (m[1]==="tax"?"매도세 ":"터빈세 φ ")+(v*100).toFixed(2)+"%"; }
+  return null;
+}
 function fillEvRow(key){
   const e=EVID[key], el=$(evId(key)); if(!el||!e) return;
-  const ch=e.chain, blk=S.block[ch], expl=ch==="anu"?"browser.anubispace.org":"polygonscan";
-  const A=(t,u)=>'<a href="'+u+'" target="_blank" rel="noopener">'+t+' ↗</a>';
+  const ch=e.chain, blk=S.block[ch], A=(t,u)=>'<a href="'+u+'" target="_blank" rel="noopener">'+t+' ↗</a>';
+  const mv=vals(key), readTab=e.v&&e.k==="getter";
   let h='<div class="evb">이 율 = '+e.basis+'</div>';
-  h+='<div class="evi">📄 컨트랙트 '+A(e.src.slice(0,10)+"…", readUrl(ch,e.src))+' <span class="evdim">→ 여기서 봄: '+e.look+' ('+expl+')</span></div>';
+  if(mv) h+='<div class="evi">🔢 측정값 <b>'+mv+'</b> <span class="evdim">(대시보드가 eth_call로 직접 읽음)</span></div>';
   if(e.cause) h+='<div class="evi evtx evdim">⏳ 변경 tx 조회중…</div>';
-  else        h+='<div class="evi evdim">🔄 변경 tx는 드묾 → 위 컨트랙트 페이지의 Transactions 탭에서 이력 확인</div>';
-  h+='<div class="evi">⏱ 읽은 블록 '+(blk?A("#"+blk, exUrl(ch,"block",blk)):"—")+' <span class="evdim">(이 값을 측정한 블록 시점)</span></div>';
+  if(readTab)
+    h+='<div class="evi">📄 컨트랙트 '+A(e.src.slice(0,10)+"…", readUrl(ch,e.src))+' <span class="evdim">→ verified: Read 탭에서 '+e.look+' 직접 호출</span></div>';
+  else
+    h+='<div class="evi">📄 컨트랙트 '+A(e.src.slice(0,10)+"…", exUrl(ch,"address",e.src))+' <span class="evdim">→ '+(e.v?"":"⚠ 미검증(Read 탭 없음). ")+(e.k==="storage"?"값=스토리지 "+e.look:e.look)+" · 검증은 위 측정값 + "+(e.cause?"아래 변경 tx":"Transactions/Logs 탭")+'</span></div>';
+  h+='<div class="evi">⏱ 읽은 블록 '+(blk?A("#"+blk, exUrl(ch,"block",blk)):"—")+' <span class="evdim">(측정 시점)</span></div>';
   el.innerHTML=h; el.hidden=false;
   if(e.cause) causeTx(key).then(tx=>{ const sp=el.querySelector(".evtx"); if(!sp)return;
     sp.classList.remove("evdim");
     sp.innerHTML = tx ? '🔗 변경 tx '+A(String(tx.hash).slice(0,12)+"…", exUrl(ch,"tx",tx.hash))+' <span class="evdim">— '+e.cause.label+" (blk "+tx.block+")</span>"
-                      : '🔄 변경 tx 조회 실패 → 컨트랙트 Transactions 탭 참조'; });
+                      : '🔄 변경 tx 조회 실패 → 컨트랙트 Transactions 탭'; });
 }
 document.addEventListener("click",ev=>{
   const b=ev.target.closest("[data-ev]"); if(!b) return;
