@@ -64,6 +64,14 @@ body{min-height:100vh;background:radial-gradient(ellipse 1200px 600px at 50% -20
 .rv{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text);text-align:right;white-space:nowrap}
 .rv.hot{color:var(--neon)}
 .rv .sub{font-size:10px;color:var(--text-faint);font-weight:400;margin-left:6px}
+.ev{background:none;border:none;cursor:pointer;font-size:11px;line-height:1;padding:0 3px;opacity:.55;vertical-align:middle}
+.ev:hover{opacity:1}
+.evrow{font-size:10.5px;color:var(--text-faint);font-family:var(--mono);padding:2px 0 6px 6px;line-height:1.6;word-break:break-all}
+.evrow a{color:var(--neon);text-decoration:none;border-bottom:1px dotted var(--neon)}
+.evrow a:hover{opacity:.8}
+.evlbl{color:var(--neon);font-weight:700;margin-right:4px}
+.evdim{color:var(--text-faint);opacity:.7}
+.bdg[data-ev]{cursor:pointer}
 .eqtag,.sttag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;margin-left:5px;font-family:var(--mono)}
 .eqtag{background:rgba(127,212,232,.13);color:var(--info)}
 .sttag{background:rgba(159,232,112,.13);color:var(--neon)}
@@ -112,7 +120,7 @@ body{min-height:100vh;background:radial-gradient(ellipse 1200px 600px at 50% -20
     <div class="card">
       <div class="ch">
         <div><div class="ct">⬡ Polygon 137</div><div class="cs" id="polyMeta">RocketSwap 시세 · 6h rebase epoch</div></div>
-        <div class="badges"><span class="bdg" id="polyTax">매도세 —</span><span class="bdg" id="polyTurb">터빈세 —</span></div>
+        <div class="badges"><span class="bdg" id="polyTax">매도세 —</span><button class="ev" data-ev="tax:poly" title="매도세 소스 컨트랙트">🔗</button><span class="bdg" id="polyTurb">터빈세 —</span><button class="ev" data-ev="turb:poly" title="터빈 컨트랙트">🔗</button></div>
       </div>
       <div class="cb" id="polyBody"><div class="note">로딩 중…</div></div>
     </div>
@@ -120,7 +128,7 @@ body{min-height:100vh;background:radial-gradient(ellipse 1200px 600px at 50% -20
     <div class="card">
       <div class="ch">
         <div><div class="ct">𓂀 Anubis 6714</div><div class="cs" id="anuMeta">RocketSwap 시세 · 6h rebase epoch</div></div>
-        <div class="badges"><span class="bdg" id="anuTax">매도세 —</span><span class="bdg" id="anuTurb">터빈세 —</span></div>
+        <div class="badges"><span class="bdg" id="anuTax">매도세 —</span><button class="ev" data-ev="tax:anu" title="매도세 소스 컨트랙트">🔗</button><span class="bdg" id="anuTurb">터빈세 —</span><button class="ev" data-ev="turb:anu" title="터빈 컨트랙트">🔗</button></div>
       </div>
       <div class="cb" id="anuBody"><div class="note">로딩 중…</div></div>
     </div>
@@ -184,6 +192,53 @@ const PROD=[
   {k:"a360",chain:"anu", name:"Anubis 360일", term:"31,104,000s ≈360d"},
   {k:"a600",chain:"anu", name:"Anubis 600일", term:"51,840,000s ≈600d"},
 ];
+
+// ───────────────────────── 온체인 근거 (evidence links) ─────────────────────────
+const EXPL ={ poly:"https://polygonscan.com", anu:"https://browser.anubispace.org" };       // 사람용 링크
+const BSAPI={ poly:"https://polygon.blockscout.com", anu:"https://browser.anubispace.org" }; // 원인 tx 조회(무료·키없음)
+const ORACLE_ANU="0xb4E5b7665186229d8A5B0ba3706c5C119dD1B47b", ACCT_ANU="0x3041C3524C560C7e8887F671e046aC4e95bD8F13";
+// 율별 소스 컨트랙트 + (가능 시)정확한 원인 tx 필터. cause=null → 컨트랙트+블록 링크만(검증가능).
+const EVID={
+  "reb:poly":  {chain:"poly", src:CFG.poly.staking, cause:null},                                           // 사용자 stake/claim 트리거 → 단일 tx 없음
+  "reb:anu":   {chain:"anu",  src:ORACLE_ANU, cause:{addr:ORACLE_ANU, method:"0xa1849438", label:"오라클 인덱스 갱신"}},
+  "extra:p360":{chain:"poly", src:CFG.poly.c360, cause:null}, "extra:p600":{chain:"poly", src:CFG.poly.c600, cause:null},
+  "extra:a360":{chain:"anu",  src:CFG.anu.c360, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자 배치 주입"}},
+  "extra:a600":{chain:"anu",  src:CFG.anu.c600, cause:{addr:ACCT_ANU, method:"0x80185c6f", from:true, label:"운영자 배치 주입"}},
+  "tax:poly":  {chain:"poly", src:CFG.poly.lgns, cause:null}, "tax:anu": {chain:"anu", src:CFG.anu.lgns, cause:null},
+  "turb:poly": {chain:"poly", src:CFG.poly.turbine, cause:null}, "turb:anu": {chain:"anu", src:CFG.anu.turbine, cause:null},
+};
+function exUrl(chain,type,id){ return EXPL[chain]+"/"+type+"/"+id; }   // type: address|tx|block
+const evId=k=>"ev-"+k.replace(/:/g,"-"), _txCache={};
+async function causeTx(key){
+  if(key in _txCache) return _txCache[key];
+  const e=EVID[key]; if(!e||!e.cause) return _txCache[key]=null;
+  try{
+    const url=BSAPI[e.chain]+"/api/v2/addresses/"+e.cause.addr+"/transactions"+(e.cause.from?"?filter=from":"");
+    const j=await (await fetch(url)).json();
+    const t=(j.items||[]).find(x=>(x.method||"")===e.cause.method);
+    return _txCache[key]= t?{hash:t.hash,block:t.block_number}:null;
+  }catch(_){ return _txCache[key]=null; }                              // 폴백: 원인 tx 생략(컨트랙트+블록은 유지)
+}
+function fillEvRow(key){
+  const e=EVID[key], el=$(evId(key)); if(!el||!e) return;
+  const ch=e.chain, blk=S.block[ch], a=(t,u)=>'<a href="'+u+'" target="_blank" rel="noopener">'+t+' ↗</a>';
+  const cL=a("컨트랙트 "+e.src.slice(0,8)+"…", exUrl(ch,"address",e.src));
+  const bL=blk?a("block "+blk, exUrl(ch,"block",blk)):"block —";
+  el.innerHTML='<span class="evlbl">근거</span> '+cL+' · 읽음 '+bL+(e.cause?' · <span class="evtx">원인 tx 조회중…</span>':' · <span class="evdim">tx목록=컨트랙트 페이지</span>');
+  el.hidden=false;
+  if(e.cause) causeTx(key).then(tx=>{ const sp=el.querySelector(".evtx"); if(!sp)return;
+    sp.innerHTML = tx ? a("원인 tx "+String(tx.hash).slice(0,10)+"…",exUrl(ch,"tx",tx.hash))+' <span class="evdim">('+e.cause.label+"·blk "+tx.block+")</span>"
+                      : '<span class="evdim">원인 tx 조회 실패 — 컨트랙트 tx목록 참조</span>'; });
+}
+document.addEventListener("click",ev=>{
+  const b=ev.target.closest("[data-ev]"); if(!b) return;
+  const key=b.dataset.ev, e=EVID[key]; if(!e) return;
+  if(key.startsWith("reb:")||key.startsWith("extra:")){            // 율 행 → 펼침 토글
+    const el=$(evId(key)); if(!el) return;
+    const open=el.hidden; if(open) fillEvRow(key); else el.hidden=true;
+    b.setAttribute("aria-expanded", open?"true":"false");
+  } else window.open(exUrl(e.chain,"address",e.src),"_blank","noopener");  // 배지 → 소스 컨트랙트 직링크
+});
 
 // ───────────────────────── helpers ─────────────────────────
 const $=id=>document.getElementById(id);
@@ -314,8 +369,10 @@ async function readExtraAnu(prod){ // prod: a360|a600
 // ───────────────────────── render ─────────────────────────
 const STT={live:['sttag','온체인Δ'],seed:['sttag seed','기준값'],wait:['sttag wait','검증대기'],calib:['sttag seed','보정중']};
 function sttag(s){const t=STT[s]||STT.seed;return `<span class="${t[0]}">${t[1]}</span>`;}
-function rateRow(label,perDay,perEp,epH,extraCls,tag){
-  return `<div class="rrow"><span class="rl">${label}</span><span class="rv ${extraCls||''}">${pct(perDay,4)}/day${tag||''}<span class="sub">${pct(perEp,4)}/ep·${epH}h</span></span></div>`;
+function rateRow(label,perDay,perEp,epH,extraCls,tag,evKey){
+  const ev=evKey?` <button class="ev" data-ev="${evKey}" aria-expanded="false" title="온체인 근거">🔗</button>`:'';
+  const row=`<div class="rrow"><span class="rl">${label}</span><span class="rv ${extraCls||''}">${pct(perDay,4)}/day${tag||''}<span class="sub">${pct(perEp,4)}/ep·${epH}h${ev}</span></span></div>`;
+  return row + (evKey?`<div class="evrow" id="${evId(evKey)}" hidden></div>`:'');
 }
 function renderChain(chain){
   const meta=chain==='poly'?'Quickswap LP · 6h rebase · extra 12h epoch':'RocketSwap LP · 6h rebase · extra 12h epoch';
@@ -327,9 +384,9 @@ function renderChain(chain){
     const ex=S.extra[p.k];
     html+=`<div class="prod">
       <div class="prod-h"><span class="prod-t">${p.k.endsWith('360')?'360일 LONG':'600일 LONG'}</span><span class="prod-meta">${p.term}</span></div>
-      ${rateRow('① 일반 rebase (복리)',reb.perDay,reb.perEp,6,'',sttag(reb.status))}
+      ${rateRow('① 일반 rebase (복리)',reb.perDay,reb.perEp,6,'',sttag(reb.status),'reb:'+chain)}
       ${rateRow('② 장기 base interest <span class="eqtag">=rebase</span>',reb.perDay,reb.perEp,6,'','')}
-      ${rateRow('③ extra interest (단리)',ex.perDay,ex.perEp,12,'hot',sttag(ex.status))}
+      ${rateRow('③ extra interest (단리)',ex.perDay,ex.perEp,12,'hot',sttag(ex.status),'extra:'+p.k)}
     </div>`;
   });
   $(chain==='poly'?'polyBody':'anuBody').innerHTML=html;
@@ -383,7 +440,8 @@ async function go(){
   res.forEach((r,i)=>{ if(r.status==='rejected') console.warn('read fail:',tasks[i][0],r.reason&&r.reason.message||r.reason); });
   renderAll();
   $('lastU').textContent=new Date().toLocaleTimeString('ko-KR');
-  $('blk').textContent=(S.block.poly?'· P#'+S.block.poly:'')+(S.block.anu?' · A#'+S.block.anu:'');
+  const bl=(c,p,n)=>n?'<a href="'+exUrl(c,'block',n)+'" target="_blank" rel="noopener">'+p+'#'+n+'</a>':'';
+  $('blk').innerHTML=(S.block.poly?'· '+bl('poly','P',S.block.poly):'')+(S.block.anu?' · '+bl('anu','A',S.block.anu):'');
   if(b){b.disabled=false;b.textContent='🔄 새로고침';}
 }
 
