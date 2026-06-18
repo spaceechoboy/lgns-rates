@@ -109,15 +109,6 @@ body{min-height:100vh;background:radial-gradient(ellipse 1200px 600px at 50% -20
 
 <div class="wrap">
 
-  <!-- 순위 카드 -->
-  <div class="card">
-    <div class="ch">
-      <div><div class="ct">🏆 자가조달 터빈 순실효 extra 순위</div>
-      <div class="cs">순실효/day = extra(단리) × 터빈회수율 <span style="font-family:var(--mono)">2−(1+φ)/(1−t)</span> · t=매도세 · φ=터빈세 (라이브)</div></div>
-    </div>
-    <div class="cb" id="rankBody"><div class="note">계산 중…</div></div>
-  </div>
-
   <div class="g2">
     <!-- Polygon -->
     <div class="card">
@@ -140,7 +131,7 @@ body{min-height:100vh;background:radial-gradient(ellipse 1200px 600px at 50% -20
   <div class="card"><div class="cb">
     <div class="foot">
       <b>이율 3종</b> — ① 일반 rebase(복리, 체인 단일·6h epoch ×4/day) · ② 장기 base interest(락업 원금에 적용되는 복리 = 체인 rebase, 별도 율 없음) · ③ extra interest(단리, 상품 전용·12h epoch ×2/day, 터빈 입력).<br>
-      <b>순위</b>는 extra만 자가조달 터빈에 통과시킨 순증(rebase 제외). <b>매도세·터빈세는 매 새로고침 온체인 실측.</b> <span style="color:var(--danger)">매도세 50% 또는 회수율 ≤0 = 킬스위치</span>(받는 2N보다 더 팔아야 함 → 자가조달 무의미).<br>
+      <b>매도세·터빈세</b>는 매 새로고침 온체인 실측(라이브).<br>
       ⚠ 전부 <b>명목 LGNS</b> 기준 · extra·rebase·매도세·터빈세는 모두 <b>운영자 가변 레버</b>(현재값만 신뢰) · real-cash 노출은 별개 판단. 첫 표본은 세션 baseline(2026-06-15 교차검증)으로 표시 후 라이브 델타로 자기수정. read-only.
     </div>
   </div></div>
@@ -423,27 +414,7 @@ function renderChain(chain){
 }
 function setBadge(id,lab,v,unit,cls){const el=$(id);if(!el)return;if(v==null||isNaN(v)){el.textContent=lab+' —';el.className='bdg';return;}el.textContent=lab+' '+fN(v,2)+unit;el.className='bdg '+cls(v);}
 
-function renderRank(){
-  const rows=PROD.map(p=>{
-    const chain=p.chain, t=chain==='poly'?S.poly.sellTax:S.anu.sellTax, phi=chain==='poly'?S.poly.turbFee:S.anu.turbFee;
-    const ex=S.extra[p.k].perDay, rec=recovery(t,phi), net=rawNet(ex,rec), kill=(rec<=0||t>=0.5);
-    return {p,ex,t,phi,rec,net,kill};
-  }).sort((a,b)=>b.net-a.net);
-  const maxNet=Math.max(...rows.map(r=>Math.max(r.net,0)),0.0001);
-  const med=['🥇','🥈','🥉','4️⃣'];
-  $('rankBody').innerHTML=rows.map((r,i)=>{
-    const w=Math.max(0,Math.min(100,r.net/maxNet*100));
-    const sub=`extra ${pct(r.ex,3)}/d·${pct(r.ex/CFG.EXTRA_EP_PER_DAY,4)}/ep × 회수 ${(r.rec*100).toFixed(1)}%  ·  매도세 ${(r.t*100).toFixed(1)}% · 터빈세 ${(r.phi*100).toFixed(1)}%`;
-    return `<div class="rk">
-      <div class="rkmed">${med[i]}</div>
-      <div class="rkmid"><div class="rkname">${r.p.name}${r.kill?' <span class="bdg hi">킬스위치</span>':''}</div>
-        <div class="rksub">${sub}</div>
-        <div class="bar"><i class="${r.kill?'kill':''}" style="width:${r.kill?100:w}%"></i></div></div>
-      <div class="rkright"><div class="rknet ${r.kill?'kill':''}">${r.kill?'≤0':fN(r.net,3)}<span class="u"> %/day</span></div>${r.kill?'':`<div class="rkep">${fN(r.net/CFG.EXTRA_EP_PER_DAY,4)} %/ep·12h</div>`}</div>
-    </div>`;
-  }).join('');
-}
-function renderAll(){ renderChain('poly'); renderChain('anu'); renderRank(); }
+function renderAll(){ renderChain('poly'); renderChain('anu'); }
 
 // ───────────────────────── boot / refresh ─────────────────────────
 async function go(){
